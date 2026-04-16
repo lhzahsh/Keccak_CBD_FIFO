@@ -1,0 +1,95 @@
+module PRNG_PRESENT (
+    input  clk, rstn,
+    output reg [71:0] dout
+);
+ 
+localparam [79:0] KEY1_INIT   = 80'h3014f4d8c37d9cc7e689;
+localparam [79:0] KEY2_INIT   = 80'h88239f8276ec927c8dec;
+localparam [63:0] STATE1_INIT = 64'h834349fd8e99a23b;
+localparam [63:0] STATE2_INIT = 64'h9281dcb8a883a38c;
+ 
+reg [79:0] key1, key2;
+reg [63:0] st1,  st2;
+reg [4:0]  round;
+ 
+function [3:0] sbox4;
+    input [3:0] x;
+    case (x)
+        4'h0: sbox4=4'hC; 4'h1: sbox4=4'h5; 4'h2: sbox4=4'h6; 4'h3: sbox4=4'hB;
+        4'h4: sbox4=4'h9; 4'h5: sbox4=4'h0; 4'h6: sbox4=4'hA; 4'h7: sbox4=4'hD;
+        4'h8: sbox4=4'h3; 4'h9: sbox4=4'hE; 4'hA: sbox4=4'hF; 4'hB: sbox4=4'h8;
+        4'hC: sbox4=4'h4; 4'hD: sbox4=4'h7; 4'hE: sbox4=4'h1; 4'hF: sbox4=4'h2;
+        default: sbox4=4'h0;
+    endcase
+endfunction
+ 
+function [63:0] sbox_layer;
+    input [63:0] d;
+    integer k;
+    begin
+        for (k=0; k<64; k=k+4)
+            sbox_layer[k+:4] = sbox4(d[k+:4]);
+    end
+endfunction
+ 
+function [63:0] pbox_layer;
+    input [63:0] d;
+    begin
+        pbox_layer[ 0]=d[ 0]; pbox_layer[16]=d[ 1]; pbox_layer[32]=d[ 2]; pbox_layer[48]=d[ 3];
+        pbox_layer[ 1]=d[ 4]; pbox_layer[17]=d[ 5]; pbox_layer[33]=d[ 6]; pbox_layer[49]=d[ 7];
+        pbox_layer[ 2]=d[ 8]; pbox_layer[18]=d[ 9]; pbox_layer[34]=d[10]; pbox_layer[50]=d[11];
+        pbox_layer[ 3]=d[12]; pbox_layer[19]=d[13]; pbox_layer[35]=d[14]; pbox_layer[51]=d[15];
+        pbox_layer[ 4]=d[16]; pbox_layer[20]=d[17]; pbox_layer[36]=d[18]; pbox_layer[52]=d[19];
+        pbox_layer[ 5]=d[20]; pbox_layer[21]=d[21]; pbox_layer[37]=d[22]; pbox_layer[53]=d[23];
+        pbox_layer[ 6]=d[24]; pbox_layer[22]=d[25]; pbox_layer[38]=d[26]; pbox_layer[54]=d[27];
+        pbox_layer[ 7]=d[28]; pbox_layer[23]=d[29]; pbox_layer[39]=d[30]; pbox_layer[55]=d[31];
+        pbox_layer[ 8]=d[32]; pbox_layer[24]=d[33]; pbox_layer[40]=d[34]; pbox_layer[56]=d[35];
+        pbox_layer[ 9]=d[36]; pbox_layer[25]=d[37]; pbox_layer[41]=d[38]; pbox_layer[57]=d[39];
+        pbox_layer[10]=d[40]; pbox_layer[26]=d[41]; pbox_layer[42]=d[42]; pbox_layer[58]=d[43];
+        pbox_layer[11]=d[44]; pbox_layer[27]=d[45]; pbox_layer[43]=d[46]; pbox_layer[59]=d[47];
+        pbox_layer[12]=d[48]; pbox_layer[28]=d[49]; pbox_layer[44]=d[50]; pbox_layer[60]=d[51];
+        pbox_layer[13]=d[52]; pbox_layer[29]=d[53]; pbox_layer[45]=d[54]; pbox_layer[61]=d[55];
+        pbox_layer[14]=d[56]; pbox_layer[30]=d[57]; pbox_layer[46]=d[58]; pbox_layer[62]=d[59];
+        pbox_layer[15]=d[60]; pbox_layer[31]=d[61]; pbox_layer[47]=d[62]; pbox_layer[63]=d[63];
+    end
+endfunction
+ 
+function [63:0] present_round;
+    input [63:0] state;
+    input [79:0] key;
+    begin
+        present_round = pbox_layer(sbox_layer(state ^ key[79:16]));
+    end
+endfunction
+ 
+function [79:0] key_schedule;
+    input [79:0] k;
+    input [4:0]  rc;
+    reg [79:0] rot;
+    begin
+        rot        = {k[18:0], k[79:19]};
+        rot[79:76] = sbox4(rot[79:76]);
+        rot[19:15] = rot[19:15] ^ rc;
+        key_schedule = rot;
+    end
+endfunction
+ 
+always @(posedge clk) begin
+    if (!rstn) begin
+        key1  <= KEY1_INIT;
+        key2  <= KEY2_INIT;
+        st1   <= STATE1_INIT;
+        st2   <= STATE2_INIT;
+        round <= 5'd1;
+        dout  <= 72'd0;
+    end else begin
+        st1   <= present_round(st1, key1);
+        st2   <= present_round(st2, key2);
+        key1  <= key_schedule(key1, round);
+        key2  <= key_schedule(key2, round);
+        round <= (round == 5'd31) ? 5'd1 : round + 1'd1;
+        dout  <= {present_round(st1, key1), present_round(st2, key2)[7:0]};
+    end
+end
+ 
+endmodule
