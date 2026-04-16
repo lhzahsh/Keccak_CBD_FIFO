@@ -340,9 +340,7 @@ module CBD(
         .b2a_start(b2a_start),
         .B0(b2a_x_0),   
         .B1(b2a_x_1),  
-        .I_r0(rand72[11:0]),
-        .I_r1(rand72[23:12]),
-        .I_r2(rand72[35:24]),
+        .random(r0),
         .b2a_valid(b2a_valid_1),   
         .out_A0(B_0),
         .out_A1(B_1)
@@ -353,9 +351,7 @@ module CBD(
         .b2a_start(b2a_start),
         .B0(b2a_y_0),   
         .B1(b2a_y_1),
-        .I_r0(rand72[47:36]),
-        .I_r1(rand72[59:48]),
-        .I_r2(rand72[71:60]),
+        .random(r1),
         .b2a_valid(b2a_valid_2),  
         .out_A0(C_0),
         .out_A1(C_1)
