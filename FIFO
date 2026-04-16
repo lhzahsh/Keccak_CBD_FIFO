@@ -1,0 +1,59 @@
+module fifo_32to24_FIFO(
+    input clk, rstn,
+    input wen, ren,
+    input [31:0] din0, din1,
+    output empty,
+    output full,
+    output reg [23:0] dout0, dout1
+);
+
+wire [15:0] dinA, dinB, dinC, dinD;
+wire [15:0] doutA, doutB, doutC, doutD;
+wire emptyA, emptyB, emptyC, emptyD;
+wire afullA, afullB, afullC, afullD;
+wire fullA, fullB, fullC, fullD;
+reg [3:0] ren_list; 
+wire [3:0] rd_en;
+
+assign empty = emptyA | emptyB | emptyC | emptyD;
+assign full = afullA | afullB | afullC | afullD;
+assign dinA = {din1[7:0], din0[7:0]};
+assign dinB = {din1[15:8], din0[15:8]};
+assign dinC = {din1[23:16], din0[23:16]}; 
+assign dinD = {din1[31:24], din0[31:24]};
+
+always @(posedge clk) begin
+    if (~rstn) ren_list <= 4'b 0111;
+    else if (ren) ren_list <= {ren_list[0], ren_list[3:1]};
+    else ren_list <= ren_list;
+end
+assign rd_en = ren ? ren_list : 4'h 0;
+
+always @(*) case(ren_list)
+    4'b 1011: begin
+        dout0 = {doutC[7:0], doutB[7:0], doutA[7:0]};
+        dout1 = {doutC[15:8], doutB[15:8], doutA[15:8]};
+    end
+    4'b 1101: begin
+        dout0 = {doutB[7:0], doutA[7:0], doutD[7:0]};
+        dout1 = {doutB[15:8], doutA[15:8], doutD[15:8]};
+    end
+    4'b 1110: begin
+        dout0 = {doutA[7:0], doutD[7:0], doutC[7:0]};
+        dout1 = {doutA[15:8], doutD[15:8], doutC[15:8]};
+    end
+    4'b 0111: begin
+        dout0 = {doutD[7:0], doutC[7:0], doutB[7:0]};
+        dout1 = {doutD[15:8], doutC[15:8], doutB[15:8]};
+    end
+    default: begin
+        dout0 = 0;
+        dout1 = 0;
+    end
+endcase
+
+fifo_generator_0 FIFOA(.clk(clk), .srst(rst), .wr_en(wen), .almost_full(afullA), .full(fullA), .din(dinA), .rd_en(rd_en[0]), .dout(doutA), .empty(emptyA));
+fifo_generator_0 FIFOB(.clk(clk), .srst(rst), .wr_en(wen), .almost_full(afullB), .full(fullB), .din(dinB), .rd_en(rd_en[1]), .dout(doutB), .empty(emptyB));
+fifo_generator_0 FIFOC(.clk(clk), .srst(rst), .wr_en(wen), .almost_full(afullC), .full(fullC), .din(dinC), .rd_en(rd_en[2]), .dout(doutC), .empty(emptyC));
+fifo_generator_0 FIFOD(.clk(clk), .srst(rst), .wr_en(wen), .almost_full(afullD), .full(fullD), .din(dinD), .rd_en(rd_en[3]), .dout(doutD), .empty(emptyD));
+endmodule
