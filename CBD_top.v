@@ -408,20 +408,20 @@ module cbd_B2A_1bit(
     end 
 endmodule 
 
-module cbd_LFSR(
-    input clk, rstn, en,
-    output reg [71:0] dout
-);
-    reg [35:0] lfsr0, lfsr1;
-    always @(posedge clk) begin
-        if (rstn == 1'b0) begin
-            lfsr0 <= 36'ha7b80018f;
-            lfsr1 <= 36'hef801161c;
-        end else begin
-            lfsr0 <= {lfsr0[33:0], lfsr0[35]^lfsr0[10], lfsr0[34]^lfsr0[20]};
-            lfsr1 <= {lfsr1[33:0], lfsr1[34]^lfsr1[15], lfsr1[35]^lfsr1[25]};
-        end 
-        if (rstn == 1'b0) dout <= 0;
-        else if (en) dout <= {lfsr0&36'h7ff7ff7ff, lfsr1&36'h7ff7ff7ff}; // 12bit in [0,3329)
-    end 
-endmodule
+//module cbd_LFSR(
+//    input clk, rstn, en,
+//    output reg [71:0] dout
+//);
+//    reg [35:0] lfsr0, lfsr1;
+//    always @(posedge clk) begin
+//        if (rstn == 1'b0) begin
+//            lfsr0 <= 36'ha7b80018f;
+//            lfsr1 <= 36'hef801161c;
+//        end else begin
+//            lfsr0 <= {lfsr0[33:0], lfsr0[35]^lfsr0[10], lfsr0[34]^lfsr0[20]};
+//            lfsr1 <= {lfsr1[33:0], lfsr1[34]^lfsr1[15], lfsr1[35]^lfsr1[25]};
+//        end 
+//        if (rstn == 1'b0) dout <= 0;
+//        else if (en) dout <= {lfsr0&36'h7ff7ff7ff, lfsr1&36'h7ff7ff7ff}; // 12bit in [0,3329)
+//    end 
+//endmodule
