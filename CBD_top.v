@@ -25,7 +25,7 @@ module CBD_top(
     input clk, rstn, en, wen, eta,
     input hash_out_busyn,
     input [23:0] din_0, din_1,
-    input [35:0] r0, r1,
+    input [38:0] r0, r1,
     output reg din_req,
     output reg [23:0] dout_0, dout_1,
     output reg dout_valid
@@ -168,7 +168,7 @@ endmodule
 module CBD(
     input clk, rstn, en, eta,
     input [5:0] in_seq, in_xor_seq,
-    input [35:0] random,
+    input [38:0] random,
     output [11:0] A1, A2,
     output reg valid
 );
