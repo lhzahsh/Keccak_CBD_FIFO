@@ -23,6 +23,7 @@ module CBD_top(
     input clk, rstn, en, wen, eta,
     input hash_out_busyn,
     input [23:0] din_0, din_1,
+    input [35:0] r0,r1,
     output reg din_req,
     output reg [23:0] dout_0, dout_1,
     output reg dout_valid
@@ -174,14 +175,15 @@ module CBD_top(
         
     end 
     
-    CBD u1(.clk(clk), .rstn(rstn), .en(cbd_start), .eta(eta), .in_seq(u1_din_s0), .in_xor_seq(u1_din_s1), .A1(u1_A1), .A2(u1_A2), .valid(u1_val)); // 48bit  randmdata?
-    CBD u2(.clk(clk), .rstn(rstn), .en(cbd_start), .eta(eta), .in_seq(u2_din_s0), .in_xor_seq(u2_din_s1), .A1(u2_A1), .A2(u2_A2), .valid(u2_val)); // 48bit  randmdata?
+    CBD u1(.clk(clk), .rstn(rstn),.random(r0),.en(cbd_start), .eta(eta), .in_seq(u1_din_s0), .in_xor_seq(u1_din_s1), .A1(u1_A1), .A2(u1_A2), .valid(u1_val)); // 36bit  randmdata
+    CBD u2(.clk(clk), .rstn(rstn),.random(r1),.en(cbd_start), .eta(eta), .in_seq(u2_din_s0), .in_xor_seq(u2_din_s1), .A1(u2_A1), .A2(u2_A2), .valid(u2_val)); // 36bit  randmdata
 
 endmodule
 
 module CBD(
     input clk, rstn, en, eta,
     input [5:0] in_seq, in_xor_seq,
+    input [35:0] random,
     output [11:0] A1, A2,
     output reg valid 
 );        
@@ -367,113 +369,225 @@ module CBD(
     
 endmodule
 
-// c0+c1 = a0 ^ a1;
-module cbd_B2A_1bit(
-    input clk, rstn, b2a_start,
-    input B0, B1,                   //input value 
-    input [11:0] I_r0, I_r1, I_r2,    //random value 
-   
-    output reg b2a_valid,
-    output [11:0] out_A0,   
-    output [11:0] out_A1  
-);
-    reg [11:0] t_s0_reg, t_s1_reg;
-    wire [11:0] inv_r0, inv_r1;
-    wire [11:0] t0_s0, t0_s1, t1_s0, t1_s1, t_s0, t_s1;
-    assign inv_r0 = 12'd3329 - I_r0;
-    assign inv_r1 = 12'd3330 - I_r1;
-    assign {t0_s0, t0_s1} = B0 ? {I_r1, inv_r1} : {I_r0, inv_r0};
-    assign {t1_s0, t1_s1} = B0 ? {I_r0, inv_r0} : {I_r1, inv_r1};
-    assign {t_s0, t_s1} = B1 ? {t1_s0, t1_s1} : {t0_s0, t0_s1};
-    
-    wire [12:0] R_t_s0_plus_r2;
-    wire [13:0] Rq_t_s0_plus_r2;
-    wire signed [12:0]  R_t_s1_sub_r2, Rq_t_s1_sub_r2;
-    assign R_t_s0_plus_r2 = t_s0_reg + I_r2;
-    assign Rq_t_s0_plus_r2 = R_t_s0_plus_r2 - 13'd3329;
-    assign R_t_s1_sub_r2 = t_s1_reg - I_r2;
-    assign Rq_t_s1_sub_r2 = R_t_s1_sub_r2 + 12'd3329;
-    assign out_A0 = Rq_t_s0_plus_r2[13] ? R_t_s0_plus_r2[11:0] : Rq_t_s0_plus_r2[11:0];
-    assign out_A1 = R_t_s1_sub_r2[12] ? Rq_t_s1_sub_r2[11:0] : R_t_s1_sub_r2[11:0];
-    
-    always @(posedge clk) begin
-        if (rstn == 1'b0) begin
-            t_s0_reg <= 0;
-            t_s1_reg <= 0;
-        end else if (b2a_start) begin
-            t_s0_reg <= t_s0;
-            t_s1_reg <= t_s1;
-        end 
-        b2a_valid <= b2a_start;
-    end 
-endmodule 
 
-module MODSUM_3329(input [11:0] A, B, output [11:0] C);
-    wire [12:0] R; wire signed [13:0] Rq;
-    assign R=A+B; assign Rq=R-13'd3329;
-    assign C=(Rq[13]==0)?Rq[11:0]:R[11:0];
-endmodule
- 
-module MODSUB_3329(input [11:0] A, B, output [11:0] C);
-    wire signed [12:0] R, Rq;
-    assign R=A-B; assign Rq=R+13'd3329;
-    assign C=(R[12]==0)?R[11:0]:Rq[11:0];
-endmodule
- 
-module MODSUM_6658(input [12:0] A, B, output [12:0] C);
-    wire [13:0] R; wire signed [14:0] Rq;
-    assign R=A+B; assign Rq=R-14'd6658;
-    assign C=(Rq[14]==0)?Rq[12:0]:R[12:0];
-endmodule
- 
-module MODSUB_6658(input [12:0] A, B, output [12:0] C);
-    wire signed [13:0] R, Rq;
-    assign R=A-B; assign Rq=R+14'd6658;
-    assign C=(R[13]==0)?R[12:0]:Rq[12:0];
-endmodule
- 
-module MODRED_6658(
+module cbd_B2A_1bit (
     input  clk, rstn, wen,
+    input  A1, A2,
+    input  [12:0] random,
+    output reg [11:0] B1, B2,
+    output reg valid
+);
+    localparam [25:0] K = 26'd33556320; // 10080 × 3329
+
+    reg  gb_wen, mred_wen;
+    reg  [11:0] u1, u2;
+    wire [24:0] gb_a1, gb_a2;
+    wire gb_valid, mred1_valid;
+
+    // DSP: gb_a * K，取高 27 位送 MODRED
+    (* use_dsp = "yes" *) reg [50:0] tmp1_dsp, tmp2_dsp;
+    reg [26:0] tmp1_r, tmp2_r;
+
+    always @(*) begin
+        tmp1_dsp = gb_a1 * K;
+        tmp2_dsp = gb_a2 * K;
+    end
+
+    always @(posedge clk) begin
+        if (!rstn) begin
+            gb_wen <= 0; u1 <= 0; u2 <= 0;
+            tmp1_r <= 0; tmp2_r <= 0;
+        end else begin
+            gb_wen <= wen;
+            if (wen) begin u1 <= {10'd0, A1}; u2 <= {10'd0, A2}; end
+            if (gb_valid) begin tmp1_r <= tmp1_dsp[50:24]; tmp2_r <= tmp2_dsp[50:24]; end
+        end
+    end
+
+    // 输出拼接与修正
+    wire [12:0] y1, y2;
+    wire [12:0] x1 = y1 + 1;
+    wire [12:0] b2a_y1, b2a_y2;
+    wire b2a_valid;
+    wire [12:0] z1_s1, z2_s1, z1_s2, z2_s2;
+    wire [12:0] carry = {11'd0, z1_s1[0]};
+
+    always @(posedge clk) begin
+        if (!rstn) begin B1 <= 0; B2 <= 0; valid <= 0; end
+        else begin
+            B1    <= z1_s2[12:1];
+            B2    <= z2_s2[12:1];
+            valid <= b2a_valid;
+        end
+        mred_wen <= gb_valid;
+    end
+
+    Goubin_12bit goubin (
+        .clk(clk), .rstn(rstn), .wen(gb_wen),
+        .u1(u1), .u2(u2), .random(random),
+        .A1(gb_a1), .A2(gb_a2), .valid(gb_valid));
+
+    MODRED_6658 mred1 (
+        .clk(clk), .rstn(rstn), .wen(mred_wen),
+        .A(tmp1_r), .B(y1), .valid(mred1_valid));
+
+    MODRED_6658 mred2 (
+        .clk(clk), .rstn(rstn), .wen(mred_wen),
+        .A(tmp2_r), .B(y2));  // valid 不需要再引出
+
+    B2A_1bit_6658 b2a (
+        .clk(clk), .rstn(rstn), .wen(mred1_valid),
+        .u1(~y1[0]), .u2(y2[0]), .random(random[12:0]),
+        .d1(b2a_y1), .d2(b2a_y2), .valid(b2a_valid));
+
+    MODSUB_6658 sub1 (x1,      b2a_y1, z1_s1);
+    MODSUB_6658 sub2 (y2,      b2a_y2, z2_s1);
+    MODSUM_6658 sum1 (z2_s1,   carry,  z2_s2);
+    MODSUB_6658 sub3 (z1_s1,   carry,  z1_s2);
+
+endmodule
+
+// c0+c1 = a0 ^ a1;
+module MODSUM_6658 (input [12:0] A, B, output [12:0] C);
+    wire [13:0] R = A + B;
+    wire signed [14:0] Rq = R - 14'd6658;
+    assign C = Rq[14] ? R[12:0] : Rq[12:0];
+endmodule
+
+module MODSUB_6658 (input [12:0] A, B, output [12:0] C);
+    wire signed [13:0] R = A - B;
+    assign C = R[13] ? (R + 14'd6658) : R[12:0];
+endmodule
+
+// ───────── Refresh_6658 ──────────────────────────────────────────────────
+
+module Refresh_6658 (
+    input clk, rstn, wen,
+    input  [12:0] v1, v2, random,
+    output [12:0] a1, a2,
+    output reg valid
+);
+    reg [12:0] a1_r, a2_r;
+    wire signed [13:0] R1 = random - 13'd6658;
+    wire [12:0] RAND_Q = R1[13] ? random : R1[12:0];
+    wire [12:0] t1, t2;
+
+    MODSUM_6658 msum (v1, RAND_Q, t1);
+    MODSUB_6658 msub (v2, RAND_Q, t2);
+
+    always @(posedge clk) begin
+        if (!rstn) begin a1_r <= 0; a2_r <= 0; valid <= 0; end
+        else begin
+            if (wen) begin a1_r <= t1; a2_r <= t2; end
+            valid <= wen;
+        end
+    end
+    assign a1 = a1_r; assign a2 = a2_r;
+endmodule
+
+// ───────── MODRED_6658 ───────────────────────────────────────────────────
+
+module MODRED_6658 (
+    input clk, rstn, wen,
     input  [26:0] A,
     output reg [12:0] B,
     output reg valid
 );
+    localparam [13:0] INV = 14'd10080;  // ceil(2^26 / 6658)
+    (* use_dsp = "yes" *) reg [40:0] t_dsp;
+    reg [14:0] t_r;
+    (* use_dsp = "yes" *) reg [27:0] a_dsp;
+    wire signed [28:0] diff  = A - a_dsp;
+    wire signed [28:0] diffq = diff + 13'd6658;
     reg wen_r;
-    reg [14:0] t_DSP_reg;
-    (* use_dsp = "yes" *) reg [40:0] t_DSP;
-    (* use_dsp = "yes" *) reg [27:0] a_DSP;
-    wire signed [28:0] a_signed, b_signed;
-    assign a_signed = A - a_DSP;
-    assign b_signed = a_signed + 13'd6658;
+
     always @(*) begin
-        t_DSP = A * 14'd10080;
-        a_DSP = t_DSP_reg * 13'd6658;
+        t_dsp = A * INV;
+        a_dsp = t_r * 13'd6658;
     end
     always @(posedge clk) begin
-        if (!rstn) begin t_DSP_reg<=0; B<=0; end
+        if (!rstn) begin t_r <= 0; B <= 0; end
         else begin
-            t_DSP_reg <= wen ? t_DSP[40:26] : t_DSP_reg;
-            B         <= a_signed[28] ? b_signed[12:0] : a_signed[12:0];
+            if (wen) t_r <= t_dsp[40:26];
+            B <= diff[28] ? diffq[12:0] : diff[12:0];
         end
-        wen_r <= wen;
-        valid <= wen_r;
+        wen_r <= wen; valid <= wen_r;
     end
 endmodule
 
-//module cbd_LFSR(
-//    input clk, rstn, en,
-//    output reg [71:0] dout
-//);
-//    reg [35:0] lfsr0, lfsr1;
-//    always @(posedge clk) begin
-//        if (rstn == 1'b0) begin
-//            lfsr0 <= 36'ha7b80018f;
-//            lfsr1 <= 36'hef801161c;
-//        end else begin
-//            lfsr0 <= {lfsr0[33:0], lfsr0[35]^lfsr0[10], lfsr0[34]^lfsr0[20]};
-//            lfsr1 <= {lfsr1[33:0], lfsr1[34]^lfsr1[15], lfsr1[35]^lfsr1[25]};
-//        end 
-//        if (rstn == 1'b0) dout <= 0;
-//        else if (en) dout <= {lfsr0&36'h7ff7ff7ff, lfsr1&36'h7ff7ff7ff}; // 12bit in [0,3329)
-//    end 
-//endmodule
+// ───────── B2A_1bit_6658 ─────────────────────────────────────────────────
+
+module B2A_1bit_6658 (
+    input clk, rstn, wen,
+    input  u1, u2,
+    input  [12:0] random,
+    output [12:0] d1, d2,
+    output valid
+);
+    wire [12:0] rq1_a1, rq1_a2;
+    wire rq1_valid, rq2_valid;
+    reg  [12:0] c1_r, c2_r;
+    reg  rq2_wen;
+
+    wire [12:0] b1 = u1 ? (13'd6658 - rq1_a1) : rq1_a1;
+    wire [12:0] b2 = u1 ? (13'd6658 - rq1_a2) : rq1_a2;
+
+    always @(posedge clk) begin
+        if (!rstn) begin c1_r <= 0; c2_r <= 0; rq2_wen <= 0; end
+        else begin
+            if (rq1_valid) begin c1_r <= b1 + u1; c2_r <= b2; end
+            rq2_wen <= rq1_valid;
+        end
+    end
+
+    Refresh_6658 rq1 (.clk(clk), .rstn(rstn), .wen(wen),
+        .v1({12'd0, u2}), .v2(13'd0), .random(random),
+        .a1(rq1_a1), .a2(rq1_a2), .valid(rq1_valid));
+
+    Refresh_6658 rq2 (.clk(clk), .rstn(rstn), .wen(rq2_wen),
+        .v1(c1_r), .v2(c2_r), .random(random),
+        .a1(d1), .a2(d2), .valid(rq2_valid));
+
+    assign valid = rq2_valid;
+endmodule
+
+// ───────── Goubin_12bit ──────────────────────────────────────────────────
+
+module Goubin_12bit (
+    input clk, rstn, wen,
+    input  [11:0] u1, u2,
+    input  [24:0] random,
+    output [24:0] A1, A2,
+    output reg valid
+);
+    reg wen_r;
+    reg [24:0] b1_r, b2_r, d_r;
+
+    wire [24:0] b1 = {13'd0, u1} ^ random;
+    wire [24:0] b2 = {13'd0, u2} ^ random;
+    wire [24:0] c1 = b2_r ^ random;
+    wire [24:0] c2 = random;
+    wire [24:0] tmp = b1_r ^ Psi(b1_r, c1) ^ Psi(b1_r, c2);
+
+    always @(posedge clk) begin
+        wen_r <= wen; valid <= wen_r;
+        if (!rstn) begin b1_r <= 0; b2_r <= 0; d_r <= 0; end
+        else begin
+            b1_r <= wen   ? b1  : 0;
+            b2_r <= wen   ? b2  : (wen_r ? b2_r : 0);
+            d_r  <= wen_r ? tmp : 0;
+        end
+    end
+    assign A1 = d_r; assign A2 = b2_r;
+
+    function [24:0] Psi;
+        input [24:0] x, r;
+        reg signed [25:0] t;
+        begin
+            t = (x ^ r) - r;
+            Psi = t[25] ? t + 33554432 : t[24:0];
+        end
+    endfunction
+endmodule
+
+
