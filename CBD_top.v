@@ -408,6 +408,58 @@ module cbd_B2A_1bit(
     end 
 endmodule 
 
+module MODSUM_3329(input [11:0] A, B, output [11:0] C);
+    wire [12:0] R; wire signed [13:0] Rq;
+    assign R=A+B; assign Rq=R-13'd3329;
+    assign C=(Rq[13]==0)?Rq[11:0]:R[11:0];
+endmodule
+ 
+module MODSUB_3329(input [11:0] A, B, output [11:0] C);
+    wire signed [12:0] R, Rq;
+    assign R=A-B; assign Rq=R+13'd3329;
+    assign C=(R[12]==0)?R[11:0]:Rq[11:0];
+endmodule
+ 
+module MODSUM_6658(input [12:0] A, B, output [12:0] C);
+    wire [13:0] R; wire signed [14:0] Rq;
+    assign R=A+B; assign Rq=R-14'd6658;
+    assign C=(Rq[14]==0)?Rq[12:0]:R[12:0];
+endmodule
+ 
+module MODSUB_6658(input [12:0] A, B, output [12:0] C);
+    wire signed [13:0] R, Rq;
+    assign R=A-B; assign Rq=R+14'd6658;
+    assign C=(R[13]==0)?R[12:0]:Rq[12:0];
+endmodule
+ 
+module MODRED_6658(
+    input  clk, rstn, wen,
+    input  [26:0] A,
+    output reg [12:0] B,
+    output reg valid
+);
+    reg wen_r;
+    reg [14:0] t_DSP_reg;
+    (* use_dsp = "yes" *) reg [40:0] t_DSP;
+    (* use_dsp = "yes" *) reg [27:0] a_DSP;
+    wire signed [28:0] a_signed, b_signed;
+    assign a_signed = A - a_DSP;
+    assign b_signed = a_signed + 13'd6658;
+    always @(*) begin
+        t_DSP = A * 14'd10080;
+        a_DSP = t_DSP_reg * 13'd6658;
+    end
+    always @(posedge clk) begin
+        if (!rstn) begin t_DSP_reg<=0; B<=0; end
+        else begin
+            t_DSP_reg <= wen ? t_DSP[40:26] : t_DSP_reg;
+            B         <= a_signed[28] ? b_signed[12:0] : a_signed[12:0];
+        end
+        wen_r <= wen;
+        valid <= wen_r;
+    end
+endmodule
+
 //module cbd_LFSR(
 //    input clk, rstn, en,
 //    output reg [71:0] dout
